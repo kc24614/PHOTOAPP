@@ -3,243 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Media Gallery Ultimate</title>
+    <title>Media Gallery Pro v4.0 - Zip Export</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         :root { --uber-black: #000000; --uber-white: #ffffff; --uber-gray: #141414; --uber-border: #333333; --netflix-red: #e50914; --uber-blue: #276ef1; }
         * { box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--uber-black); color: var(--uber-white); margin: 0; padding: 0; }
         
-        /* Navigation */
-        nav { background: rgba(0,0,0,0.9); padding: 18px 0; display: flex; justify-content: center; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #222; }
-        nav a { color: #afafaf; text-decoration: none; font-size: 14px; font-weight: 500; margin: 0 25px; letter-spacing: 0.5px; }
+        nav { background: rgba(0,0,0,0.95); padding: 18px 0; display: flex; justify-content: center; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #222; }
+        nav a { color: #afafaf; text-decoration: none; font-size: 14px; font-weight: 500; margin: 0 15px; cursor: pointer; }
         nav a.active { color: var(--uber-white); border-bottom: 2px solid var(--netflix-red); padding-bottom: 5px; }
+
+        .storage-monitor { background: #0a0a0a; padding: 10px 20px; border-bottom: 1px solid #222; font-size: 11px; color: #888; }
+        .progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .progress-bar { height: 100%; width: 0%; background: var(--uber-blue); transition: width 0.3s; }
 
         .container { max-width: 800px; margin: auto; padding: 20px; }
         .page { display: none; }
-        .page.active { display: block; animation: fadeIn 0.5s ease; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .page.active { display: block; }
 
-        h2 { font-size: 24px; font-weight: 700; margin-bottom: 20px; }
+        /* 下拉選單與輸入框 */
+        .combo-container { position: relative; margin-top: 6px; margin-bottom: 15px; }
+        .uber-input { width: 100%; background: #1a1a1a; border: 1px solid #333; padding: 14px; border-radius: 6px; color: white; outline: none; }
+        .custom-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #222; border: 1px solid #444; z-index: 2000; max-height: 200px; overflow-y: auto; display: none; }
+        .dropdown-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #333; }
 
-        /* Netflix List */
-        .item-card { position: relative; width: 100%; aspect-ratio: 16/9; background: var(--uber-gray); border-radius: 8px; overflow: hidden; margin-bottom: 25px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .item-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .item-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.9)); padding: 15px; }
-        .item-code { font-weight: 700; font-size: 18px; }
+        /* 標籤篩選 */
+        .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .tag { background: #1a1a1a; border: 1px solid #333; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; color: #ccc; }
+        .tag.active { background: var(--uber-blue); border-color: var(--uber-blue); color: white; }
 
-        /* Detail View */
-        .detail-hero { width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-        .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* 連結說明欄位樣式 */
-        .info-box { background: var(--uber-gray); padding: 15px; border-radius: 8px; border-left: 4px solid var(--uber-blue); margin-bottom: 25px; }
-        .link-btn { display: inline-flex; align-items: center; color: var(--uber-blue); text-decoration: none; font-weight: 600; margin-top: 10px; font-size: 15px; }
-        .link-btn:after { content: ' ↗'; margin-left: 4px; }
+        /* 卡片 */
+        .item-card { width: 100%; aspect-ratio: 16/9; background: var(--uber-gray); border-radius: 8px; overflow: hidden; margin-bottom: 20px; cursor: pointer; position: relative; }
+        .item-card img { width: 100%; height: 100%; object-fit: cover; }
+        .item-overlay { position: absolute; bottom: 0; width: 100%; background: linear-gradient(transparent, black); padding: 15px; }
 
-        .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .gallery-item { position: relative; aspect-ratio: 16/9; background: #222; border-radius: 6px; overflow: hidden; }
-        .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* UI Buttons */
-        .btn-black { background: var(--uber-white); color: var(--uber-black); border: none; padding: 14px; font-size: 16px; font-weight: 700; border-radius: 4px; width: 100%; cursor: pointer; margin-top: 20px; }
-        .btn-outline { background: transparent; color: var(--uber-white); border: 1px solid #555; padding: 8px 16px; font-weight: 600; border-radius: 4px; }
+        .btn-black { background: var(--uber-white); color: var(--uber-black); border: none; padding: 16px; font-weight: 700; border-radius: 6px; width: 100%; cursor: pointer; margin-top: 10px; }
+        .btn-black:disabled { background: #444; color: #888; }
 
-        /* Form Controls */
-        .uber-input { width: 100%; background: #333; border: none; padding: 14px; font-size: 16px; border-radius: 4px; margin-top: 8px; color: white; outline: none; margin-bottom: 10px; }
-        .form-label { font-size: 14px; color: #aaa; margin-top: 10px; display: block; }
-
-        .edit-badge { position: absolute; top: 8px; right: 8px; background: var(--netflix-red); color: white; border-radius: 50%; width: 28px; height: 28px; text-align: center; line-height: 28px; font-weight: bold; display: none; border: 2px solid white; }
-        .is-editing .edit-badge { display: block; }
-        .is-editing img { opacity: 0.4; }
-
-        /* Lightbox */
-        #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; overflow: auto; }
-        #lightbox-container { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 10px; }
-        #lightbox img { max-width: 100%; border-radius: 4px; }
+        #export-loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
 <nav>
     <a href="#list" id="nav-list">首頁庫</a>
-    <a href="#upload" id="nav-upload">新增</a>
+    <a href="#category" id="nav-category">篩選/匯出</a>
+    <a href="#upload" id="nav-upload">新增相簿</a>
 </nav>
+
+<div class="storage-monitor">
+    <div style="display: flex; justify-content: space-between;">
+        <span>儲存狀態 / <a onclick="exportAllAsZip()" style="color:var(--uber-blue); cursor:pointer; text-decoration:underline;">一鍵打包下載 ZIP</a></span>
+        <span id="storage-text">...</span>
+    </div>
+    <div class="progress-bg"><div id="storage-bar" class="progress-bar"></div></div>
+</div>
+
+<div id="export-loading">
+    <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">正在打包照片...</div>
+    <div id="export-progress">0%</div>
+    <p style="color:#888;">請勿關閉瀏覽器，處理完後會自動下載</p>
+</div>
 
 <div class="container">
     <div id="list" class="page active">
-        <h2>正在探索</h2>
+        <h2>所有相簿</h2>
         <div id="list-content"></div>
     </div>
 
-    <div id="view" class="page">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 id="view-code-label" style="margin:0; color:var(--netflix-red);">ID</h2>
-            <button class="btn-outline" onclick="toggleEdit()">管理</button>
+    <div id="category" class="page">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>篩選中心</h2>
+            <button class="tag" style="background:var(--uber-blue); color:white;" onclick="exportAllAsZip()">匯出全部照片</button>
         </div>
-        <div id="view-info-area"></div>
-        <div id="view-body"></div>
-        <button id="del-btn" class="btn-black" style="background:#b9090b; color:white; display:none;" onclick="deleteAlbum()">刪除相簿</button>
+        <div id="actor-tags" class="tag-cloud"></div>
+        <div id="cat-tags" class="tag-cloud"></div>
+        <hr style="border:0; border-top:1px solid #222;">
+        <div id="category-results"></div>
     </div>
 
     <div id="upload" class="page">
-        <h2>新增相簿資料</h2>
-        <span class="form-label">識別編號 (CODE)</span>
-        <input type="text" id="up-code" class="uber-input" placeholder="例如: NF-2024">
-        
-        <span class="form-label">說明 / 連結</span>
-        <input type="text" id="up-link" class="uber-input" placeholder="貼上外部網址 http://...">
+        <h2>新增相簿</h2>
+        <div style="background: #0a0a0a; padding: 20px; border-radius: 8px;">
+            <input type="text" id="up-code" class="uber-input" placeholder="CODE (例如: ABC-001)" style="margin-bottom:15px;">
+            <div style="display: flex; gap: 10px;">
+                <div style="flex:1;">
+                    <input type="text" id="up-actor" class="uber-input" placeholder="演員" style="margin-bottom:15px;">
+                    <div id="actor-drop" class="custom-dropdown"></div>
+                </div>
+                <div style="flex:1;">
+                    <input type="text" id="up-cat" class="uber-input" placeholder="分類">
+                    <div id="cat-drop" class="custom-dropdown"></div>
+                </div>
+            </div>
+            <input type="file" id="up-cover" class="uber-input" accept="image/*" style="margin-top:10px;">
+            <p style="font-size:12px; color:#666;">封面照片 (16:9)</p>
+            <input type="file" id="up-gallery" class="uber-input" accept="image/*" multiple>
+            <p style="font-size:12px; color:#666;">內容照片 (多選)</p>
+            <button id="save-btn" class="btn-black" onclick="startUpload()">儲存相簿</button>
+        </div>
+    </div>
 
-        <span class="form-label">封面縮圖 (16:9)</span>
-        <input type="file" id="up-cover" class="uber-input" accept="image/*">
-        
-        <span class="form-label">內容相片 (16:9 / 多選)</span>
-        <input type="file" id="up-gallery" class="uber-input" accept="image/*" multiple>
-        
-        <button class="btn-black" onclick="startUpload()">確認儲存</button>
+    <div id="view" class="page">
+        <h2 id="view-code-label" style="color:var(--netflix-red);"></h2>
+        <div id="view-info"></div>
+        <div id="view-body"></div>
+        <button id="del-btn" class="btn-black" style="background:#b9090b; color:white; display:none;" onclick="deleteAlbum()">刪除此相簿</button>
+        <button class="btn-black" style="background:#333; color:white;" onclick="isEditMode=!isEditMode; renderView()">切換管理模式</button>
     </div>
 </div>
 
-<div id="lightbox" onclick="this.style.display='none'">
-    <div id="lightbox-container"><img id="lb-img"></div>
+<div id="lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:10000; align-items:center; justify-content:center;" onclick="this.style.display='none'">
+    <img id="lb-img" style="max-width:95%; max-height:95%;">
 </div>
 
 <script>
     let db;
     let isEditMode = false;
+    let selectedActors = new Set();
+    let selectedCats = new Set();
 
-    // DB 初始化
-    const req = indexedDB.open("MediaUltimateDB", 1);
-    req.onupgradeneeded = e => { 
-        let store = e.target.result.createObjectStore("albums", { keyPath: "code" });
+    // 初始化 DB
+    const req = indexedDB.open("MediaUltimateDB", 10);
+    req.onupgradeneeded = e => {
+        let d = e.target.result;
+        if (!d.objectStoreNames.contains("albums")) d.createObjectStore("albums", { keyPath: "code" });
     };
-    req.onsuccess = e => { db = e.target.result; router(); };
+    req.onsuccess = e => { db = e.target.result; updateStorageInfo(); router(); };
 
+    // --- 核心匯出功能 ---
+    async function exportAllAsZip() {
+        if (!confirm("即將開始將資料庫內所有照片打包成 ZIP。如果照片很多，處理需要一些時間，確定嗎？")) return;
+
+        const loading = document.getElementById('export-loading');
+        const progressTxt = document.getElementById('export-progress');
+        loading.style.display = 'flex';
+
+        const zip = new JSZip();
+        const tx = db.transaction("albums", "readonly");
+        const store = tx.objectStore("albums");
+        
+        store.getAll().onsuccess = async (e) => {
+            const allData = e.target.result;
+            const total = allData.length;
+
+            if (total === 0) {
+                alert("目前沒有任何資料可以匯出。");
+                loading.style.display = 'none';
+                return;
+            }
+
+            for (let i = 0; i < total; i++) {
+                const item = allData[i];
+                // 設定資料夾路徑: 分類 / 演員 / CODE
+                const catFolder = item.category || "未分類";
+                const actorFolder = item.actor || "未知演員";
+                const codeFolder = item.code;
+                const basePath = `${catFolder}/${actorFolder}/${codeFolder}`;
+
+                // 加入封面
+                zip.file(`${basePath}/封面.jpg`, item.cover);
+
+                // 加入內容相片
+                item.gallery.forEach((blob, index) => {
+                    zip.file(`${basePath}/內容_${index + 1}.jpg`, blob);
+                });
+
+                // 更新進度
+                const p = Math.floor(((i + 1) / total) * 100);
+                progressTxt.innerText = `${p}% (正在處理 ${item.code})`;
+            }
+
+            progressTxt.innerText = "正在生成 ZIP 檔，請稍候...";
+            const content = await zip.generateAsync({ type: "blob" });
+            saveAs(content, `我的相簿備份_${new Date().toISOString().slice(0,10)}.zip`);
+            
+            loading.style.display = 'none';
+            alert("打包完成！已開始下載。");
+        };
+    }
+
+    // --- 基礎邏輯 ---
     window.addEventListener('hashchange', router);
+
     function router() {
         const page = (window.location.hash || '#list').substring(1).split('?')[0];
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
         if(document.getElementById(page)) document.getElementById(page).classList.add('active');
         if(document.getElementById('nav-'+page)) document.getElementById('nav-'+page).classList.add('active');
+        
         if(page === 'list') renderList();
+        if(page === 'category') { selectedActors.clear(); selectedCats.clear(); renderCategoryPage(); }
         if(page === 'view') { isEditMode = false; renderView(); }
     }
 
-    // 16:9 裁切
     async function crop(file) {
         return new Promise(res => {
-            const img = new Image();
-            img.src = URL.createObjectURL(file);
+            const img = new Image(); img.src = URL.createObjectURL(file);
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const ratio = 16/9;
-                let w = img.width, h = img.height;
-                if (w / h > ratio) w = h * ratio; else h = w / ratio;
                 canvas.width = 1280; canvas.height = 720;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, (img.width-w)/2, (img.height-h)/2, w, h, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob(b => res(b), 'image/jpeg', 0.85);
+                const r = 16/9; let w = img.width, h = img.height;
+                if(w/h > r) w = h*r; else h = w/r;
+                ctx.drawImage(img, (img.width-w)/2, (img.height-h)/2, w, h, 0, 0, 1280, 720);
+                canvas.toBlob(b => res(b), 'image/jpeg', 0.8);
             };
         });
     }
 
     async function startUpload() {
+        const btn = document.getElementById('save-btn');
         const code = document.getElementById('up-code').value.trim();
-        const link = document.getElementById('up-link').value.trim();
+        const actor = document.getElementById('up-actor').value.trim();
+        const cat = document.getElementById('up-cat').value.trim();
         const coverF = document.getElementById('up-cover').files[0];
         const gallF = Array.from(document.getElementById('up-gallery').files);
-        
-        if(!code || !coverF) return alert("請填寫識別碼與封面");
+
+        if(!code || !coverF) return alert("CODE 和封面是必填的！");
+        btn.disabled = true;
 
         const cBlob = await crop(coverF);
         const gBlobs = [];
         for(let f of gallF) gBlobs.push(await crop(f));
 
         const tx = db.transaction("albums", "readwrite");
-        tx.objectStore("albums").put({ code, link, cover: cBlob, gallery: gBlobs });
-        tx.oncomplete = () => { window.location.hash = "#list"; location.reload(); };
+        tx.objectStore("albums").put({ code, actor, category: cat, cover: cBlob, gallery: gBlobs, ts: Date.now() });
+        tx.oncomplete = () => { alert("儲存成功"); location.hash="#list"; location.reload(); };
     }
 
     function renderList() {
-        const container = document.getElementById('list-content');
-        container.innerHTML = '';
         db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
-            e.target.result.forEach(item => {
-                const url = URL.createObjectURL(item.cover);
-                container.innerHTML += `
-                    <div class="item-card" onclick="location.hash='#view?code=${item.code}'">
-                        <img src="${url}">
-                        <div class="item-overlay">
-                            <div class="item-code">${item.code}</div>
-                        </div>
-                    </div>`;
-            });
+            const data = e.target.result.sort((a,b)=>b.ts - a.ts);
+            document.getElementById('list-content').innerHTML = data.map(item => `
+                <div class="item-card" onclick="location.hash='#view?code=${encodeURIComponent(item.code)}'">
+                    <img src="${URL.createObjectURL(item.cover)}">
+                    <div class="item-overlay">
+                        <div style="font-weight:bold;">${item.code}</div>
+                        <div style="font-size:12px; color:#ccc;">${item.actor} / ${item.category}</div>
+                    </div>
+                </div>`).join('');
+        };
+    }
+
+    function renderCategoryPage() {
+        db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
+            const data = e.target.result;
+            const actors = [...new Set(data.map(i => i.actor).filter(Boolean))].sort();
+            const cats = [...new Set(data.map(i => i.category).filter(Boolean))].sort();
+            document.getElementById('actor-tags').innerHTML = actors.map(a => `<div class="tag ${selectedActors.has(a)?'active':''}" onclick="toggleF('actor','${a}',this)">${a}</div>`).join('');
+            document.getElementById('cat-tags').innerHTML = cats.map(c => `<div class="tag ${selectedCats.has(c)?'active':''}" onclick="toggleF('cat','${c}',this)">${c}</div>`).join('');
+            applyFilters();
+        };
+    }
+
+    function toggleF(type, val, el) {
+        const s = (type === 'actor') ? selectedActors : selectedCats;
+        if(s.has(val)) s.delete(val); else s.add(val);
+        el.classList.toggle('active');
+        applyFilters();
+    }
+
+    function applyFilters() {
+        db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
+            let data = e.target.result;
+            if(selectedActors.size) data = data.filter(i => selectedActors.has(i.actor));
+            if(selectedCats.size) data = data.filter(i => selectedCats.has(i.category));
+            document.getElementById('category-results').innerHTML = data.map(item => `
+                <div class="item-card" onclick="location.hash='#view?code=${encodeURIComponent(item.code)}'">
+                    <img src="${URL.createObjectURL(item.cover)}">
+                    <div class="item-overlay"><b>${item.code}</b></div>
+                </div>`).join('');
         };
     }
 
     function renderView() {
         const code = new URLSearchParams(location.hash.split('?')[1]).get('code');
         db.transaction("albums").objectStore("albums").get(code).onsuccess = e => {
-            const item = e.target.result;
-            if(!item) return;
+            const item = e.target.result; if(!item) return;
             document.getElementById('view-code-label').innerText = item.code;
             document.getElementById('del-btn').style.display = isEditMode ? 'block' : 'none';
-            
-            // 顯示連結說明欄位
-            const infoArea = document.getElementById('view-info-area');
-            if(item.link) {
-                infoArea.innerHTML = `
-                    <div class="info-box">
-                        <div style="font-size:13px; color:#888;">作品說明與連結</div>
-                        <a href="${item.link}" target="_blank" class="link-btn">開啟外部連結</a>
-                    </div>`;
-            } else {
-                infoArea.innerHTML = '';
-            }
-
-            const body = document.getElementById('view-body');
-            const cUrl = URL.createObjectURL(item.cover);
-            body.innerHTML = `
-                <div class="${isEditMode ? 'is-editing' : ''}">
-                    <div class="detail-hero"><img src="${cUrl}"></div>
-                    <div class="gallery-grid">
-                        ${item.gallery.map((b, idx) => {
-                            const u = URL.createObjectURL(b);
-                            return `<div class="gallery-item">
-                                <img src="${u}" onclick="openLightbox('${u}')">
-                                <div class="edit-badge" onclick="deleteSingle('${item.code}', ${idx})">✕</div>
-                            </div>`;
-                        }).join('')}
-                    </div>
+            document.getElementById('view-info').innerHTML = `<div style="padding:10px; background:#111; margin-bottom:10px;">演員: ${item.actor} | 分類: ${item.category}</div>`;
+            document.getElementById('view-body').innerHTML = `
+                <img src="${URL.createObjectURL(item.cover)}" style="width:100%; border-radius:8px; margin-bottom:10px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    ${item.gallery.map((b, i) => `
+                        <div style="position:relative; aspect-ratio:16/9; background:#222;">
+                            <img src="${URL.createObjectURL(b)}" style="width:100%; height:100%; object-fit:cover;" onclick="openLB(this.src)">
+                            ${isEditMode ? `<div style="position:absolute; top:5px; right:5px; background:red; padding:5px;" onclick="deleteImg('${item.code}', ${i})">✕</div>` : ''}
+                        </div>`).join('')}
                 </div>`;
         };
     }
 
-    function openLightbox(src) {
-        if(isEditMode) return;
-        document.getElementById('lb-img').src = src;
-        document.getElementById('lightbox').style.display = 'block';
+    function openLB(src) { document.getElementById('lb-img').src = src; document.getElementById('lightbox').style.display = 'flex'; }
+    function deleteAlbum() { if(confirm("確定刪除整個相簿？")) db.transaction("albums","readwrite").objectStore("albums").delete(document.getElementById('view-code-label').innerText).onsuccess = () => location.hash="#list"; }
+    function deleteImg(code, idx) {
+        const tx = db.transaction("albums","readwrite"); const store = tx.objectStore("albums");
+        store.get(code).onsuccess = e => { const d = e.target.result; d.gallery.splice(idx,1); store.put(d).onsuccess = () => renderView(); };
     }
 
-    function toggleEdit() {
-        isEditMode = !isEditMode;
-        renderView();
-    }
-
-    function deleteSingle(code, idx) {
-        const tx = db.transaction("albums", "readwrite");
-        const store = tx.objectStore("albums");
-        store.get(code).onsuccess = e => {
-            const d = e.target.result;
-            d.gallery.splice(idx, 1);
-            store.put(d).onsuccess = () => renderView();
-        };
-    }
-
-    function deleteAlbum() {
-        const code = document.getElementById('view-code-label').innerText;
-        if(confirm("確定刪除此相簿？")) {
-            db.transaction("albums", "readwrite").objectStore("albums").delete(code).onsuccess = () => location.hash = "#list";
+    async function updateStorageInfo() {
+        if(navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            const p = ((est.usage/est.quota)*100).toFixed(1);
+            document.getElementById('storage-text').innerText = `${(est.usage/1e9).toFixed(2)} / ${(est.quota/1e9).toFixed(1)} GB (${p}%)`;
+            document.getElementById('storage-bar').style.width = p+'%';
         }
     }
 </script>
