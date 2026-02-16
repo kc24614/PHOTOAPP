@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AV 管理器 - 純自動化演員版</title>
+    <title>AV 管理器 - 完整網格管理版</title>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --accent: #58a6ff; --text: #c9d1d9; --border: #30363d; --success: #238636; }
@@ -11,8 +11,7 @@
         
         /* 側邊欄 */
         .sidebar { width: 320px; background: #010409; padding: 25px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
-        h2 { font-size: 0.9rem; color: var(--accent); margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 250px; overflow-y: auto; }
+        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 180px; overflow-y: auto; }
         .pool-item { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #21262d; color: #8b949e; }
 
         /* 主區域 */
@@ -20,55 +19,75 @@
         .toolbar { background: var(--card); padding: 15px 30px; border-bottom: 1px solid var(--border); }
         .scroll-container { flex-grow: 1; padding: 30px; overflow-y: auto; }
 
-        /* 卡片設計 - 16:9 比例 */
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
-        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: 0.2s; }
-        .video-card:hover { border-color: var(--accent); }
-        
-        .cover-box { width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        /* 卡片設計 */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cover-box { width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; cursor: pointer; position: relative; }
         .cover-box img { width: 100%; height: 100%; object-fit: cover; }
         
         .info-box { padding: 15px; }
-        .video-code { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 8px; display: block; }
+        .video-code { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 5px; display: block; }
+        .actor-label { font-size: 13px; color: #3fb950; font-weight: bold; display: block; margin-bottom: 10px; }
         
-        /* 演員顯示區 (不可編輯) */
-        .actor-label { font-size: 13px; color: #3fb950; font-weight: bold; margin-bottom: 10px; display: block; }
-        
-        /* 標籤管理區 */
-        .tag-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
         .pill-box { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
         .pill { font-size: 11px; padding: 3px 12px; border-radius: 20px; background: rgba(255, 123, 114, 0.1); border: 1px solid #ff7b72; color: #ff7b72; cursor: pointer; }
-        
+
+        /* --- 相簿牆 Overlay (網格排開) --- */
+        #album-overlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0, 0, 0, 0.98); z-index: 9999; 
+            flex-direction: column; 
+        }
+        .album-header { 
+            padding: 15px 30px; background: #010409; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid var(--border);
+        }
+        .album-content { flex: 1; overflow-y: auto; padding: 25px; }
+        .photo-wall { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+            gap: 15px; 
+        }
+        .photo-wall img { width: 100%; border-radius: 4px; border: 1px solid #30363d; }
+
+        /* 公用元件 */
         .btn-main { background: var(--success); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin: 10px 0; }
         input[type="text"], select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; width: 100%; }
         input[type="file"] { display: none; }
-
-        .status-msg { font-size: 12px; color: var(--accent); margin: 5px 0; font-family: monospace; }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2>📁 1. 自動掃描引擎</h2>
-    <p style="font-size:11px; color:#8b949e; line-height:1.4;">讀取格式: <br><code style="color:#e6edf3;">!番號_演員_封面.jpg</code></p>
-    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取掃描資料夾</button>
-    <input type="file" id="dirIn" webkitdirectory directory multiple onchange="handleFolderScan(this)">
-    
-    <div id="status" class="status-msg"></div>
+<div id="album-overlay" onclick="closeAlbum()">
+    <div class="album-header" onclick="event.stopPropagation()">
+        <div id="album-title" style="font-weight: bold; color: var(--accent);">相簿內容</div>
+        <div style="color:white; cursor:pointer; font-size: 35px; line-height: 1;" onclick="closeAlbum()">&times;</div>
+    </div>
+    <div class="album-content">
+        <div class="photo-wall" id="photo-wall" onclick="event.stopPropagation()"></div>
+    </div>
+</div>
 
-    <h2>🎭 已偵測演員清單</h2>
+<div class="sidebar">
+    <h2>📁 自動掃描引擎</h2>
+    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取授權資料夾</button>
+    <input type="file" id="dirIn" webkitdirectory directory multiple onchange="handleFolderScan(this)">
+    <div id="status" style="font-size:12px; color:var(--accent); margin:10px 0;"></div>
+
+    <h2>🎭 已偵測演員</h2>
     <div class="display-pool" id="actorPoolDisplay"></div>
 
     <h2>🏷️ 標籤庫管理</h2>
     <input type="text" id="tagIn" placeholder="新增自定義標籤..." onkeypress="if(event.key==='Enter') addToPool('tagPool')">
     <div class="display-pool" id="tagPoolDisplay"></div>
 
-    <button class="btn-main" style="margin-top:auto; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出 TXT 成果</button>
+    <button class="btn-main" style="margin-top:auto; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出成果 TXT</button>
 </div>
 
 <div class="main">
     <div class="toolbar">
-        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤內容..." oninput="refreshUI()">
+        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤..." oninput="refreshUI()">
     </div>
     <div class="scroll-container">
         <div class="video-grid" id="grid"></div>
@@ -76,47 +95,41 @@
 </div>
 
 <script>
-    const db = new Dexie("AV_PureAuto_DB");
+    const db = new Dexie("AV_FullGrid_DB");
     db.version(1).stores({
         videos: '++id, &code, *actors, *tags',
         actorPool: '++id, &name',
         tagPool: '++id, &name'
     });
 
-    const coverCache = {};
+    let coverCache = {}; 
+    let allImagesCache = {}; 
 
     async function handleFolderScan(input) {
         const files = Array.from(input.files);
         if (files.length === 0) return;
-
-        document.getElementById('status').innerText = ">> 正在解析檔名與演員...";
-        
+        document.getElementById('status').innerText = ">> 解析照片中...";
         const scanResults = {}; 
 
         for (let file of files) {
             const parts = file.webkitRelativePath.split('/');
             if (parts.length < 2) continue;
-            
             const code = parts[1].toUpperCase();
             if (!scanResults[code]) scanResults[code] = { actors: new Set() };
+            if (!allImagesCache[code]) allImagesCache[code] = [];
 
-            // 嚴格解析: !番號_演員_封面
-            if (file.name.startsWith('!') && file.name.includes('封面')) {
-                const fileNameNoExt = file.name.split('.')[0];
-                const segments = fileNameNoExt.split('_');
-                
-                if (segments.length >= 3) {
-                    const actorName = segments[1].trim();
-                    
-                    // 1. 綁定圖片
-                    if (!coverCache[code]) coverCache[code] = URL.createObjectURL(file);
-                    
-                    // 2. 紀錄該番號的演員
-                    scanResults[code].actors.add(actorName);
-                    
-                    // 3. 同步演員庫
-                    const actorInPool = await db.actorPool.where('name').equalsIgnoreCase(actorName).first();
-                    if (!actorInPool) await db.actorPool.add({ name: actorName });
+            if (file.type.startsWith("image/")) {
+                const url = URL.createObjectURL(file);
+                allImagesCache[code].push(url);
+                if (file.name.startsWith('!') && file.name.includes('封面')) {
+                    const segments = file.name.split('.')[0].split('_');
+                    if (segments.length >= 3) {
+                        const actorName = segments[1].trim();
+                        coverCache[code] = url;
+                        scanResults[code].actors.add(actorName);
+                        const exist = await db.actorPool.where('name').equalsIgnoreCase(actorName).first();
+                        if (!exist) await db.actorPool.add({ name: actorName });
+                    }
                 }
             }
         }
@@ -124,20 +137,26 @@
         for (let code in scanResults) {
             const video = await db.videos.where('code').equalsIgnoreCase(code).first();
             const actorsArray = Array.from(scanResults[code].actors);
-            
-            if (video) {
-                // 自動更新演員（以檔名為準）
-                await db.videos.update(video.id, { actors: actorsArray });
-            } else {
-                await db.videos.add({ code, actors: actorsArray, tags: [] });
-            }
+            if (video) await db.videos.update(video.id, { actors: actorsArray });
+            else await db.videos.add({ code, actors: actorsArray, tags: [] });
         }
-
         document.getElementById('status').innerText = ">> 同步完成";
         renderPools();
     }
 
-    // --- 管理邏輯 ---
+    function openAlbum(code) {
+        const photos = allImagesCache[code];
+        if (!photos || photos.length === 0) return;
+        const wall = document.getElementById('photo-wall');
+        wall.innerHTML = photos.map(src => `<img src="${src}">`).join('');
+        document.getElementById('album-title').innerText = `${code} (${photos.length} 張照片)`;
+        document.getElementById('album-overlay').style.display = 'flex';
+    }
+
+    function closeAlbum() {
+        document.getElementById('album-overlay').style.display = 'none';
+        document.getElementById('photo-wall').innerHTML = '';
+    }
 
     async function addToPool(table) {
         const input = document.getElementById('tagIn');
@@ -150,61 +169,42 @@
     async function renderPools() {
         const actors = await db.actorPool.toArray();
         const tags = await db.tagPool.toArray();
-        
-        document.getElementById('actorPoolDisplay').innerHTML = actors.map(item => `
-            <div class="pool-item"><span>${item.name}</span></div>
-        `).join('');
-
-        document.getElementById('tagPoolDisplay').innerHTML = tags.map(item => `
-            <div class="pool-item">
-                <span>${item.name}</span>
-                <span style="color:#f85149; cursor:pointer;" onclick="deleteFromPool('tagPool', ${item.id})">×</span>
-            </div>
-        `).join('');
+        document.getElementById('actorPoolDisplay').innerHTML = actors.map(i => `<div class="pool-item">${i.name}</div>`).join('');
+        document.getElementById('tagPoolDisplay').innerHTML = tags.map(i => `<div class="pool-item"><span>${i.name}</span><span style="color:#ff7b72; cursor:pointer;" onclick="deleteFromPool('tagPool', ${i.id})">×</span></div>`).join('');
         refreshUI();
     }
 
-    async function deleteFromPool(table, id) {
-        await db[table].delete(id);
-        renderPools();
-    }
+    async function deleteFromPool(table, id) { await db[table].delete(id); renderPools(); }
 
     async function refreshUI() {
         const q = document.getElementById('search').value.toLowerCase();
         let videos = await db.videos.reverse().toArray();
         const tagPool = await db.tagPool.toArray();
 
-        if (q) {
-            videos = videos.filter(v => v.code.toLowerCase().includes(q) || 
-                                     v.actors.some(a=>a.toLowerCase().includes(q)) || 
-                                     v.tags.some(t=>t.toLowerCase().includes(q)));
-        }
+        if (q) videos = videos.filter(v => v.code.toLowerCase().includes(q) || v.actors.some(a=>a.toLowerCase().includes(q)) || v.tags.some(t=>t.toLowerCase().includes(q)));
 
         document.getElementById('grid').innerHTML = videos.map(v => `
             <div class="video-card">
-                <div class="cover-box">
-                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="color:#484f58; font-size:11px;">需圖檔: !${v.code}_演員_封面</div>`}
+                <div class="cover-box" onclick="openAlbum('${v.code}')">
+                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="padding:20px; color:#484f58; text-align:center;">查看網格相簿</div>`}
                 </div>
                 <div class="info-box">
                     <span class="video-code">${v.code}</span>
                     <span class="actor-label">🎭 ${v.actors.join(', ') || '未知演員'}</span>
-                    
-                    <div class="tag-section">
-                        <div class="pill-box">${v.tags.map(t => `<span class="pill" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
-                        <select onchange="updateTag(${v.id}, 'tags', this.value); this.value=''">
-                            <option value="">+ 新增標籤</option>
-                            ${tagPool.map(t => `<option value="${t.name}">${t.name}</option>`).join('')}
-                        </select>
-                    </div>
+                    <div class="pill-box">${v.tags.map(t => `<span class="pill" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
+                    <select onchange="updateTag(${v.id}, 'tags', this.value); this.value=''">
+                        <option value="">+ 新增標籤</option>
+                        ${tagPool.map(t => `<option value="${t.name}">${t.name}</option>`).join('')}
+                    </select>
                 </div>
             </div>
         `).join('');
     }
 
     async function updateTag(id, field, val) {
+        if (!val) return;
         const v = await db.videos.get(id);
-        const set = new Set(v[field]);
-        set.add(val);
+        const set = new Set(v[field]); set.add(val);
         await db.videos.update(id, { [field]: Array.from(set) });
         refreshUI();
     }
@@ -217,13 +217,14 @@
 
     async function exportData() {
         const list = await db.videos.toArray();
-        let txt = "番號 | 演員 | 標籤\n" + list.map(v => `${v.code} | ${v.actors.join(', ') || '無演員資料'} | ${v.tags.join(', ') || '無標籤資料'}`).join('\n');
+        let txt = "番號 | 演員 | 標籤\n" + list.map(v => `${v.code} | ${v.actors.join(', ') || '無'} | ${v.tags.join(', ') || '無'}`).join('\n');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
-        a.download = "AV分類成果.txt";
+        a.download = "分類成果.txt";
         a.click();
     }
 
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAlbum(); });
     renderPools();
 </script>
 </body>
