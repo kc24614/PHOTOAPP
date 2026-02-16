@@ -2,376 +2,208 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Media Gallery Pro v4.0 - Database Fixed</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <title>AV 視覺化管理 - 智慧解析版</title>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <style>
-        :root { --uber-black: #000000; --uber-white: #ffffff; --uber-gray: #141414; --uber-border: #333333; --netflix-red: #e50914; --uber-blue: #276ef1; }
+        :root { --bg: #0d1117; --card: #161b22; --accent: #58a6ff; --text: #c9d1d9; --border: #30363d; --success: #238636; }
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--uber-black); color: var(--uber-white); margin: 0; padding: 0; }
-        
-        nav { background: rgba(0,0,0,0.95); padding: 18px 0; display: flex; justify-content: center; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #222; }
-        nav a { color: #afafaf; text-decoration: none; font-size: 14px; font-weight: 500; margin: 0 15px; cursor: pointer; }
-        nav a.active { color: var(--uber-white); border-bottom: 2px solid var(--netflix-red); padding-bottom: 5px; }
-
-        .storage-monitor { background: #0a0a0a; padding: 10px 20px; border-bottom: 1px solid #222; font-size: 11px; color: #888; }
-        .progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-top: 5px; overflow: hidden; }
-        .progress-bar { height: 100%; width: 0%; background: var(--uber-blue); transition: width 0.3s; }
-
-        .container { max-width: 800px; margin: auto; padding: 20px; }
-        .page { display: none; }
-        .page.active { display: block; }
-
-        /* 下拉選單 */
-        .input-group { position: relative; display: flex; align-items: center; width: 100%; }
-        .uber-input { width: 100%; background: #1a1a1a; border: 1px solid #333; padding: 14px; border-radius: 6px; color: white; outline: none; }
-        .uber-input.with-arrow { padding-right: 40px; }
-        .drop-arrow { position: absolute; right: 5px; background: transparent; border: none; color: #666; cursor: pointer; padding: 10px; font-size: 10px; z-index: 5; }
-
-        .custom-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #222; border: 1px solid #444; z-index: 2000; max-height: 200px; overflow-y: auto; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-        .dropdown-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #333; font-size: 14px; }
-        .dropdown-item:hover { background: #333; }
-
-        .item-card { width: 100%; aspect-ratio: 16/9; background: var(--uber-gray); border-radius: 8px; overflow: hidden; margin-bottom: 20px; cursor: pointer; position: relative; }
-        .item-card img { width: 100%; height: 100%; object-fit: cover; }
-        .item-overlay { position: absolute; bottom: 0; width: 100%; background: linear-gradient(transparent, black); padding: 15px; }
-
-        .btn-black { background: var(--uber-white); color: var(--uber-black); border: none; padding: 16px; font-weight: 700; border-radius: 6px; width: 100%; cursor: pointer; margin-top: 10px; }
-        .btn-black:disabled { background: #444; color: #888; }
-        
-        .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
-        .tag { background: #1a1a1a; border: 1px solid #333; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; color: #ccc; }
-        .tag.active { background: var(--uber-blue); border-color: var(--uber-blue); color: white; }
-
-        #export-loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 320px; background: #010409; padding: 20px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
+        .main { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
+        .toolbar { background: var(--card); padding: 15px 25px; border-bottom: 1px solid var(--border); }
+        .scroll-container { flex-grow: 1; padding: 25px; overflow-y: auto; }
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+        .cover-box { width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .cover-box img { width: 100%; height: 100%; object-fit: cover; }
+        .info-box { padding: 15px; }
+        .video-code { font-size: 1.1rem; font-weight: bold; color: var(--accent); }
+        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 150px; overflow-y: auto; font-size: 13px; }
+        .pool-item { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #21262d; }
+        .btn-main { background: var(--success); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin: 10px 0; }
+        .pill { font-size: 11px; padding: 2px 10px; border-radius: 12px; background: rgba(88, 166, 255, 0.1); border: 1px solid var(--accent); cursor: pointer; margin: 2px; display: inline-block; }
+        input[type="file"] { display: none; }
+        input[type="text"], select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 8px; border-radius: 4px; width: 100%; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<nav>
-    <a href="#list" id="nav-list">首頁庫</a>
-    <a href="#category" id="nav-category">篩選/匯出</a>
-    <a href="#upload" id="nav-upload">新增相簿</a>
-</nav>
+<div class="sidebar">
+    <h2>📁 自動掃描 (解析檔名)</h2>
+    <p style="font-size:11px; color:#8b949e;">格式需求: !番號_演員_封面.jpg</p>
+    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取大資料夾</button>
+    <input type="file" id="dirIn" webkitdirectory directory multiple onchange="handleFolderScan(this)">
+    
+    <div id="status" style="font-size:12px; color:var(--accent); margin-bottom:10px;"></div>
 
-<div class="storage-monitor">
-    <div style="display: flex; justify-content: space-between;">
-        <span>儲存狀態 / <a onclick="exportAllAsZip()" style="color:var(--uber-blue); cursor:pointer; text-decoration:underline;">打包 ZIP</a></span>
-        <span id="storage-text">等待資料庫...</span>
-    </div>
-    <div class="progress-bg"><div id="storage-bar" class="progress-bar"></div></div>
+    <h2>🎭 演員庫 (自動新增)</h2>
+    <div class="display-pool" id="actorPoolDisplay"></div>
+
+    <h2>🏷️ 標籤庫</h2>
+    <input type="text" id="tagIn" placeholder="輸入標籤按 Enter..." onkeypress="if(event.key==='Enter') addToPool('tagPool')">
+    <div class="display-pool" id="tagPoolDisplay"></div>
+
+    <button class="btn-main" style="margin-top:20px; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出分類 TXT</button>
 </div>
 
-<div id="export-loading">
-    <div id="loading-title" style="font-size: 20px; margin-bottom: 10px;">處理中...</div>
-    <div id="export-progress">0%</div>
-</div>
-
-<div class="container">
-    <div id="list" class="page active">
-        <h2>所有相簿</h2>
-        <div id="list-content"></div>
+<div class="main">
+    <div class="toolbar">
+        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤..." oninput="refreshUI()">
     </div>
-
-    <div id="category" class="page">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>篩選中心</h2>
-            <button class="tag" style="background:var(--uber-blue); color:white;" onclick="exportAllAsZip()">匯出全部照片</button>
-        </div>
-        <div id="actor-tags" class="tag-cloud"></div>
-        <div id="cat-tags" class="tag-cloud"></div>
-        <hr style="border:0; border-top:1px solid #222;">
-        <div id="category-results"></div>
+    <div class="scroll-container">
+        <div class="video-grid" id="grid"></div>
     </div>
-
-    <div id="upload" class="page">
-        <h2>新增相簿</h2>
-        <div style="background: #0a0a0a; padding: 20px; border-radius: 8px;">
-            <input type="text" id="up-code" class="uber-input" placeholder="CODE (例如: ABC-001)" style="margin-bottom:15px;">
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <div style="flex:1; position: relative;">
-                    <div class="input-group">
-                        <input type="text" id="up-actor" class="uber-input with-arrow" placeholder="演員" autocomplete="off" oninput="filterDropdown('actor')">
-                        <button class="drop-arrow" onclick="toggleDropdown('actor')">▼</button>
-                    </div>
-                    <div id="actor-drop" class="custom-dropdown"></div>
-                </div>
-                <div style="flex:1; position: relative;">
-                    <div class="input-group">
-                        <input type="text" id="up-cat" class="uber-input with-arrow" placeholder="分類" autocomplete="off" oninput="filterDropdown('cat')">
-                        <button class="drop-arrow" onclick="toggleDropdown('cat')">▼</button>
-                    </div>
-                    <div id="cat-drop" class="custom-dropdown"></div>
-                </div>
-            </div>
-
-            <p style="font-size:12px; color:#888;">封面 (16:9)</p>
-            <input type="file" id="up-cover" class="uber-input" accept="image/*" style="margin-bottom:15px;">
-            
-            <p style="font-size:12px; color:#888;">內容多圖</p>
-            <input type="file" id="up-gallery" class="uber-input" accept="image/*" multiple>
-            
-            <button id="save-btn" class="btn-black" onclick="startUpload()">儲存相簿</button>
-        </div>
-    </div>
-
-    <div id="view" class="page">
-        <h2 id="view-code-label" style="color:var(--netflix-red);"></h2>
-        <div id="view-info"></div>
-        <div id="view-body"></div>
-        <button id="del-btn" class="btn-black" style="background:#b9090b; color:white; display:none;" onclick="deleteAlbum()">刪除此相簿</button>
-        <button class="btn-black" style="background:#333; color:white;" onclick="isEditMode=!isEditMode; renderView()">切換管理模式</button>
-    </div>
-</div>
-
-<div id="lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:10000; align-items:center; justify-content:center;" onclick="this.style.display='none'">
-    <img id="lb-img" style="max-width:95%; max-height:95%;">
 </div>
 
 <script>
-    let db;
-    let isEditMode = false;
-    let selectedActors = new Set();
-    let selectedCats = new Set();
-
-    // --- 資料庫初始化函數 ---
-    function initDB() {
-        // 使用較高的版本號 15 以覆蓋舊版可能的錯誤
-        const request = indexedDB.open("MediaUltimateDB", 15);
-
-        request.onerror = (e) => {
-            console.error("Database error:", e.target.error);
-            alert("資料庫開啟失敗！原因: " + e.target.error.name + "。如果是 iOS/Safari，請確保不是無痕模式。");
-        };
-
-        request.onupgradeneeded = (e) => {
-            const d = e.target.result;
-            if (!d.objectStoreNames.contains("albums")) {
-                d.createObjectStore("albums", { keyPath: "code" });
-            }
-        };
-
-        request.onsuccess = (e) => {
-            db = e.target.result;
-            updateStorageInfo();
-            router();
-            console.log("Database opened successfully");
-        };
-    }
-
-    // 啟動資料庫
-    initDB();
-
-    // --- 點擊空白處關閉下拉選單 ---
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.input-group')) {
-            document.querySelectorAll('.custom-dropdown').forEach(d => d.style.display = 'none');
-        }
+    const db = new Dexie("AV_Smart_Parsing_DB");
+    db.version(1).stores({
+        videos: '++id, &code, *actors, *tags',
+        actorPool: '++id, &name',
+        tagPool: '++id, &name'
     });
 
-    // --- 下拉功能 ---
-    function toggleDropdown(type) {
-        if(!db) return;
-        const drop = document.getElementById(type + '-drop');
-        if (drop.style.display === 'block') { drop.style.display = 'none'; return; }
-        
-        const tx = db.transaction("albums", "readonly");
-        tx.objectStore("albums").getAll().onsuccess = (e) => {
-            const list = [...new Set(e.target.result.map(i => i[type === 'actor' ? 'actor' : 'category']).filter(Boolean))].sort();
-            renderDropdownItems(type, list);
-        };
-    }
+    const coverCache = {};
 
-    function renderDropdownItems(type, list) {
-        const drop = document.getElementById(type + '-drop');
-        drop.innerHTML = list.map(item => `<div class="dropdown-item" onclick="selectDrop('${type}','${item.replace(/'/g, "\\'")}')">${item}</div>`).join('');
-        drop.style.display = list.length ? 'block' : 'none';
-    }
+    async function handleFolderScan(input) {
+        const files = Array.from(input.files);
+        const codesFound = new Set();
+        let newActorsCount = 0;
 
-    function filterDropdown(type) {
-        if(!db) return;
-        const tx = db.transaction("albums", "readonly");
-        tx.objectStore("albums").getAll().onsuccess = (e) => {
-            const inputVal = document.getElementById('up-' + type).value.toLowerCase();
-            const list = [...new Set(e.target.result.map(i => i[type === 'actor' ? 'actor' : 'category']).filter(Boolean))].sort();
-            const filtered = list.filter(item => item.toLowerCase().includes(inputVal));
-            renderDropdownItems(type, filtered);
-        };
-    }
+        document.getElementById('status').innerText = "智慧解析中...";
 
-    function selectDrop(type, val) {
-        document.getElementById('up-' + type).value = val;
-        document.getElementById(type + '-drop').style.display = 'none';
-    }
+        for (let file of files) {
+            const pathParts = file.webkitRelativePath.split('/');
+            if (pathParts.length < 2) continue;
 
-    // --- 核心儲存功能 ---
-    async function startUpload() {
-        if(!db) return alert("資料庫未準備好");
-        const code = document.getElementById('up-code').value.trim();
-        const actor = document.getElementById('up-actor').value.trim();
-        const cat = document.getElementById('up-cat').value.trim();
-        const coverF = document.getElementById('up-cover').files[0];
-        const gallF = Array.from(document.getElementById('up-gallery').files);
+            const folderCode = pathParts[1].toUpperCase();
+            codesFound.add(folderCode);
 
-        if(!code || !coverF) return alert("CODE 和封面是必填的！");
+            // 智慧解析規則: !番號_演員_封面
+            // 檔名範例: !JUFE-093_三船かれん_封面.jpg
+            if (file.name.startsWith('!') && file.name.includes('封面')) {
+                const fileNameNoExt = file.name.split('.')[0]; // 去除副檔名
+                const segments = fileNameNoExt.split('_'); // 用底線切割
 
-        const btn = document.getElementById('save-btn');
-        btn.disabled = true;
-        document.getElementById('export-loading').style.display = 'flex';
-        document.getElementById('loading-title').innerText = "處理圖片中...";
+                if (segments.length >= 3) {
+                    const actorName = segments[1]; // 取得演員名稱
+                    
+                    // 1. 緩存圖片
+                    if (!coverCache[folderCode]) {
+                        coverCache[folderCode] = URL.createObjectURL(file);
+                    }
 
-        try {
-            const cBlob = await crop(coverF);
-            const gBlobs = [];
-            for(let i=0; i<gallF.length; i++) {
-                gBlobs.push(await crop(gallF[i]));
-                document.getElementById('export-progress').innerText = `${Math.round((i/gallF.length)*100)}%`;
+                    // 2. 自動將演員加入全域演員庫
+                    const actorExists = await db.actorPool.where('name').equalsIgnoreCase(actorName).count();
+                    if (actorExists === 0) {
+                        await db.actorPool.add({ name: actorName });
+                        newActorsCount++;
+                    }
+
+                    // 3. 自動將演員關聯到該部影片 (後續 refreshUI 會處理)
+                    const video = await db.videos.where('code').equalsIgnoreCase(folderCode).first();
+                    if (video) {
+                        const currentActors = new Set(video.actors);
+                        currentActors.add(actorName);
+                        await db.videos.update(video.id, { actors: Array.from(currentActors) });
+                    }
+                }
             }
-
-            const tx = db.transaction("albums", "readwrite");
-            const store = tx.objectStore("albums");
-            const item = { code, actor, category: cat, cover: cBlob, gallery: gBlobs, ts: Date.now() };
-            
-            const req = store.put(item);
-            tx.oncomplete = () => {
-                alert("儲存成功");
-                location.hash="#list";
-                location.reload();
-            };
-            tx.onerror = (e) => {
-                alert("儲存失敗：資料庫寫入錯誤");
-                btn.disabled = false;
-                document.getElementById('export-loading').style.display = 'none';
-            };
-        } catch (e) {
-            alert("圖片裁切過程發生錯誤");
-            btn.disabled = false;
-            document.getElementById('export-loading').style.display = 'none';
         }
+
+        // 建立番號基礎資料
+        for (let code of codesFound) {
+            try { await db.videos.add({ code, actors: [], tags: [] }); } catch (e) {}
+        }
+
+        document.getElementById('status').innerText = `掃描完成！新增 ${newActorsCount} 位演員。`;
+        renderPools();
     }
 
-    async function crop(file) {
-        return new Promise((res) => {
-            const img = new Image();
-            img.src = URL.createObjectURL(file);
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 1280; canvas.height = 720;
-                const ctx = canvas.getContext('2d');
-                const r = 16/9; let w = img.width, h = img.height;
-                if(w/h > r) w = h*r; else h = w/r;
-                ctx.drawImage(img, (img.width-w)/2, (img.height-h)/2, w, h, 0, 0, 1280, 720);
-                canvas.toBlob(b => res(b), 'image/jpeg', 0.8);
-            };
-        });
+    async function addToPool(table) {
+        const input = table === 'actorPool' ? document.getElementById('actIn') : document.getElementById('tagIn');
+        if (!input.value.trim()) return;
+        try { await db[table].add({ name: input.value.trim() }); } catch(e) {}
+        input.value = '';
+        renderPools();
     }
 
-    // --- 路由與導航 ---
-    window.addEventListener('hashchange', router);
-    function router() {
-        const page = (window.location.hash || '#list').substring(1).split('?')[0];
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-        if(document.getElementById(page)) document.getElementById(page).classList.add('active');
-        if(document.getElementById('nav-'+page)) document.getElementById('nav-'+page).classList.add('active');
-        if(page === 'list') renderList();
-        if(page === 'category') renderCategoryPage();
-        if(page === 'view') renderView();
+    async function renderPools() {
+        const actors = await db.actorPool.toArray();
+        const tags = await db.tagPool.toArray();
+        const render = (data, elId, table) => {
+            document.getElementById(elId).innerHTML = data.map(item => `
+                <div class="pool-item"><span>${item.name}</span><span style="color:#f85149; cursor:pointer;" onclick="deleteFromPool('${table}', ${item.id})">×</span></div>
+            `).join('');
+        };
+        render(actors, 'actorPoolDisplay', 'actorPool');
+        render(tags, 'tagPoolDisplay', 'tagPool');
+        refreshUI();
     }
 
-    function renderList() {
-        if(!db) return;
-        db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
-            const data = e.target.result.sort((a,b)=>b.ts - a.ts);
-            document.getElementById('list-content').innerHTML = data.map(item => `
-                <div class="item-card" onclick="location.hash='#view?code=${encodeURIComponent(item.code)}'">
-                    <img src="${URL.createObjectURL(item.cover)}">
-                    <div class="item-overlay">
-                        <b>${item.code}</b><br><small>${item.actor} / ${item.category}</small>
+    async function deleteFromPool(table, id) {
+        await db[table].delete(id);
+        renderPools();
+    }
+
+    async function refreshUI() {
+        const q = document.getElementById('search').value.toLowerCase();
+        let videos = await db.videos.reverse().toArray();
+        const actPool = await db.actorPool.toArray();
+        const tagPool = await db.tagPool.toArray();
+
+        if (q) videos = videos.filter(v => v.code.toLowerCase().includes(q) || v.actors.some(a=>a.toLowerCase().includes(q)) || v.tags.some(t=>t.toLowerCase().includes(q)));
+
+        document.getElementById('grid').innerHTML = videos.map(v => `
+            <div class="video-card">
+                <div class="cover-box">
+                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="color:#484f58; font-size:12px;">無符合格式封面<br>!番號_演員_封面</div>`}
+                </div>
+                <div class="info-box">
+                    <span class="video-code">${v.code}</span>
+                    <div style="margin-top:10px;">
+                        <select onchange="updateTag(${v.id}, 'actors', this.value); this.value=''">
+                            <option value="">+ 選擇演員</option>
+                            ${actPool.map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
+                        </select>
+                        <div class="pill-box">${v.actors.map(a => `<span class="pill" onclick="removeTag(${v.id}, 'actors', '${a}')">${a}</span>`).join('')}</div>
                     </div>
-                </div>`).join('');
-        };
+                    <div style="margin-top:10px;">
+                        <select onchange="updateTag(${v.id}, 'tags', this.value); this.value=''">
+                            <option value="">+ 選擇標籤</option>
+                            ${tagPool.map(t => `<option value="${t.name}">${t.name}</option>`).join('')}
+                        </select>
+                        <div class="pill-box">${v.tags.map(t => `<span class="pill" style="border-color:#ff7b72; color:#ff7b72;" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
-    function renderCategoryPage() {
-        if(!db) return;
-        db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
-            const data = e.target.result;
-            const actors = [...new Set(data.map(i => i.actor).filter(Boolean))].sort();
-            const cats = [...new Set(data.map(i => i.category).filter(Boolean))].sort();
-            document.getElementById('actor-tags').innerHTML = actors.map(a => `<div class="tag ${selectedActors.has(a)?'active':''}" onclick="toggleF('actor','${a}',this)">${a}</div>`).join('');
-            document.getElementById('cat-tags').innerHTML = cats.map(c => `<div class="tag ${selectedCats.has(c)?'active':''}" onclick="toggleF('cat','${c}',this)">${c}</div>`).join('');
-            applyFilters();
-        };
+    async function updateTag(id, field, val) {
+        const v = await db.videos.get(id);
+        const set = new Set(v[field]);
+        set.add(val);
+        await db.videos.update(id, { [field]: Array.from(set) });
+        refreshUI();
     }
 
-    function toggleF(type, val, el) {
-        const s = (type === 'actor') ? selectedActors : selectedCats;
-        if(s.has(val)) s.delete(val); else s.add(val);
-        el.classList.toggle('active');
-        applyFilters();
+    async function removeTag(id, field, val) {
+        const v = await db.videos.get(id);
+        await db.videos.update(id, { [field]: v[field].filter(x => x !== val) });
+        refreshUI();
     }
 
-    function applyFilters() {
-        db.transaction("albums").objectStore("albums").getAll().onsuccess = e => {
-            let data = e.target.result;
-            if(selectedActors.size) data = data.filter(i => selectedActors.has(i.actor));
-            if(selectedCats.size) data = data.filter(i => selectedCats.has(i.category));
-            document.getElementById('category-results').innerHTML = data.map(item => `
-                <div class="item-card" onclick="location.hash='#view?code=${encodeURIComponent(item.code)}'">
-                    <img src="${URL.createObjectURL(item.cover)}">
-                    <div class="item-overlay"><b>${item.code}</b></div>
-                </div>`).join('');
-        };
+    async function exportData() {
+        const list = await db.videos.toArray();
+        let txt = "番號 | 演員 | 標籤\n" + list.map(v => `${v.code} | ${v.actors.join(', ') || '無演員資料'} | ${v.tags.join(', ') || '無標籤資料'}`).join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+        a.download = "AV庫存_智慧解析版.txt";
+        a.click();
     }
 
-    function renderView() {
-        const code = new URLSearchParams(location.hash.split('?')[1]).get('code');
-        db.transaction("albums").objectStore("albums").get(code).onsuccess = e => {
-            const item = e.target.result; if(!item) return;
-            document.getElementById('view-code-label').innerText = item.code;
-            document.getElementById('del-btn').style.display = isEditMode ? 'block' : 'none';
-            document.getElementById('view-info').innerHTML = `<p>演員: ${item.actor} | 分類: ${item.category}</p>`;
-            document.getElementById('view-body').innerHTML = `
-                <img src="${URL.createObjectURL(item.cover)}" style="width:100%; border-radius:8px; margin-bottom:15px;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                    ${item.gallery.map((b, i) => `<img src="${URL.createObjectURL(b)}" style="width:100%; border-radius:5px;" onclick="openLB(this.src)">`).join('')}
-                </div>`;
-        };
-    }
-
-    async function exportAllAsZip() {
-        if(!db) return;
-        const loading = document.getElementById('export-loading');
-        loading.style.display = 'flex';
-        const zip = new JSZip();
-        db.transaction("albums").objectStore("albums").getAll().onsuccess = async (e) => {
-            const data = e.target.result;
-            for(let i=0; i<data.length; i++) {
-                const item = data[i];
-                const path = `${item.category||"未分類"}/${item.actor||"未知"}/${item.code}`;
-                zip.file(`${path}/封面.jpg`, item.cover);
-                item.gallery.forEach((b, idx) => zip.file(`${path}/圖_${idx+1}.jpg`, b));
-            }
-            const content = await zip.generateAsync({type:"blob"});
-            saveAs(content, `備份_${new Date().getTime()}.zip`);
-            loading.style.display = 'none';
-        };
-    }
-
-    async function updateStorageInfo() {
-        if(navigator.storage && navigator.storage.estimate) {
-            const est = await navigator.storage.estimate();
-            const p = ((est.usage/est.quota)*100).toFixed(1);
-            document.getElementById('storage-text').innerText = `${(est.usage/1e9).toFixed(2)} / ${(est.quota/1e9).toFixed(1)} GB (${p}%)`;
-            document.getElementById('storage-bar').style.width = p+'%';
-        }
-    }
-
-    function openLB(src) { document.getElementById('lb-img').src = src; document.getElementById('lightbox').style.display = 'flex'; }
-    function deleteAlbum() { if(confirm("刪除？")) db.transaction("albums","readwrite").objectStore("albums").delete(document.getElementById('view-code-label').innerText).onsuccess = () => location.hash="#list"; }
+    renderPools();
 </script>
 </body>
 </html>
