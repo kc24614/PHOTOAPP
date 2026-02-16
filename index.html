@@ -2,299 +2,230 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>StreamVault Ultra V8 - Sensitive Gestures</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>AV 管理器 - 完整網格管理版</title>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <style>
-        :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
-        body { background-color: #000; color: white; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; margin: 0; overflow: hidden; }
+        :root { --bg: #0d1117; --card: #161b22; --accent: #58a6ff; --text: #c9d1d9; --border: #30363d; --success: #238636; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        .page { display: none; height: 100vh; overflow-y: auto; padding-bottom: 100px; }
-        .page.active { display: block; }
+        /* 側邊欄 */
+        .sidebar { width: 320px; background: #010409; padding: 25px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 180px; overflow-y: auto; }
+        .pool-item { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #21262d; color: #8b949e; }
+
+        /* 主區域 */
+        .main { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
+        .toolbar { background: var(--card); padding: 15px 30px; border-bottom: 1px solid var(--border); }
+        .scroll-container { flex-grow: 1; padding: 30px; overflow-y: auto; }
+
+        /* 卡片設計 */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cover-box { width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; cursor: pointer; position: relative; }
+        .cover-box img { width: 100%; height: 100%; object-fit: cover; }
         
-        .bottom-nav { position: fixed; bottom: 0; width: 100%; height: calc(70px + var(--safe-bottom)); background: rgba(0,0,0,0.85); backdrop-filter: blur(25px); border-top: 1px solid #222; z-index: 1000; display: flex; padding-bottom: var(--safe-bottom); }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #555; font-size: 10px; font-weight: bold; }
-        .nav-item.active { color: white; }
+        .info-box { padding: 15px; }
+        .video-code { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 5px; display: block; }
+        .actor-label { font-size: 13px; color: #3fb950; font-weight: bold; display: block; margin-bottom: 10px; }
+        
+        .pill-box { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .pill { font-size: 11px; padding: 3px 12px; border-radius: 20px; background: rgba(255, 123, 114, 0.1); border: 1px solid #ff7b72; color: #ff7b72; cursor: pointer; }
 
-        #heroBlurBg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(60px) brightness(0.4); transform: scale(1.2); }
-
-        /* 詳情內頁 - 靈敏手勢優化 */
-        #detailView { 
-            position: fixed; inset: 0; z-index: 1100; display: none; background: #000; 
-            overflow-y: auto; transform: translateY(100%); 
-            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-            will-change: transform;
+        /* --- 相簿牆 Overlay (網格排開) --- */
+        #album-overlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0, 0, 0, 0.98); z-index: 9999; 
+            flex-direction: column; 
         }
-        #detailHero { width: 100%; aspect-ratio: 16 / 10; background-size: cover; background-position: center; position: relative; }
-        #detailHero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 30%, #000 100%); }
+        .album-header { 
+            padding: 15px 30px; background: #010409; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid var(--border);
+        }
+        .album-content { flex: 1; overflow-y: auto; padding: 25px; }
+        .photo-wall { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+            gap: 15px; 
+        }
+        .photo-wall img { width: 100%; border-radius: 4px; border: 1px solid #30363d; }
 
-        /* 燈箱 Story 模式 */
-        #lightbox { position: fixed; inset: 0; z-index: 2000; background: #000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
-        #lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .lb-zone { position: absolute; top: 0; height: 100%; z-index: 2010; }
-        .lb-prev { left: 0; width: 30%; } 
-        .lb-close { left: 30%; width: 40%; } 
-        .lb-next { right: 0; width: 30%; }
-
-        /* 隨機頁面 */
-        #randomPage { scroll-snap-type: y mandatory; overflow-y: scroll; height: 100vh; }
-        .tiktok-card { height: 100vh; width: 100%; scroll-snap-align: start; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .tiktok-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(40px) brightness(0.3); transform: scale(1.1); }
-        .story-progress { position: absolute; top: calc(15px + var(--safe-top)); left: 10px; right: 10px; display: flex; gap: 4px; z-index: 50; }
-        .story-bar { height: 2px; flex: 1; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
-        .story-fill { height: 100%; background: #fff; width: 0%; transition: width 0.2s; }
-
-        /* 篩選摺疊 */
-        .filter-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid #1a1a1a; cursor: pointer; }
-        .filter-content { display: none; flex-wrap: wrap; gap: 8px; padding: 15px 0; }
-        .filter-content.open { display: flex; }
-        .chip { padding: 7px 16px; background: #111; border-radius: 20px; font-size: 11px; border: 1px solid #222; color: #888; }
-        .chip.active { background: #fff; color: #000; border-color: #fff; }
-        .row-container { display: flex; overflow-x: auto; gap: 12px; padding: 0 20px; scrollbar-width: none; }
-        .row-container::-webkit-scrollbar { display: none; }
+        /* 公用元件 */
+        .btn-main { background: var(--success); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin: 10px 0; }
+        input[type="text"], select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; width: 100%; }
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="lightbox">
-        <div class="story-progress" id="lbProgress"></div>
-        <div class="lb-zone lb-prev" onclick="prevLbImage()"></div>
-        <div class="lb-zone lb-close" onclick="closeLightbox()"></div>
-        <div class="lb-zone lb-next" onclick="nextLbImage()"></div>
-        <img id="lightboxImg" src="">
+<div id="album-overlay" onclick="closeAlbum()">
+    <div class="album-header" onclick="event.stopPropagation()">
+        <div id="album-title" style="font-weight: bold; color: var(--accent);">相簿內容</div>
+        <div style="color:white; cursor:pointer; font-size: 35px; line-height: 1;" onclick="closeAlbum()">&times;</div>
     </div>
+    <div class="album-content">
+        <div class="photo-wall" id="photo-wall" onclick="event.stopPropagation()"></div>
+    </div>
+</div>
 
-    <div id="homePage" class="page active">
-        <div id="hero" class="relative h-[72vh] flex flex-col justify-end items-center overflow-hidden">
-            <div id="heroBlurBg"></div>
-            <img id="heroMainImg" src="" class="relative z-10 w-2/3 max-w-[250px] rounded-xl shadow-2xl border border-white/10 mb-8 transition-all duration-500">
-            <div class="relative z-10 text-center pb-12 w-full px-6">
-                <h1 id="heroTitle" class="text-3xl font-black italic mb-6">SV-ULTRA</h1>
-                <button id="heroInfoBtn" class="bg-white text-black px-12 py-3 rounded-full font-bold text-sm">查看詳情</button>
+<div class="sidebar">
+    <h2>📁 自動掃描引擎</h2>
+    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取授權資料夾</button>
+    <input type="file" id="dirIn" webkitdirectory directory multiple onchange="handleFolderScan(this)">
+    <div id="status" style="font-size:12px; color:var(--accent); margin:10px 0;"></div>
+
+    <h2>🎭 已偵測演員</h2>
+    <div class="display-pool" id="actorPoolDisplay"></div>
+
+    <h2>🏷️ 標籤庫管理</h2>
+    <input type="text" id="tagIn" placeholder="新增自定義標籤..." onkeypress="if(event.key==='Enter') addToPool('tagPool')">
+    <div class="display-pool" id="tagPoolDisplay"></div>
+
+    <button class="btn-main" style="margin-top:auto; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出成果 TXT</button>
+</div>
+
+<div class="main">
+    <div class="toolbar">
+        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤..." oninput="refreshUI()">
+    </div>
+    <div class="scroll-container">
+        <div class="video-grid" id="grid"></div>
+    </div>
+</div>
+
+<script>
+    const db = new Dexie("AV_FullGrid_DB");
+    db.version(1).stores({
+        videos: '++id, &code, *actors, *tags',
+        actorPool: '++id, &name',
+        tagPool: '++id, &name'
+    });
+
+    let coverCache = {}; 
+    let allImagesCache = {}; 
+
+    async function handleFolderScan(input) {
+        const files = Array.from(input.files);
+        if (files.length === 0) return;
+        document.getElementById('status').innerText = ">> 解析照片中...";
+        const scanResults = {}; 
+
+        for (let file of files) {
+            const parts = file.webkitRelativePath.split('/');
+            if (parts.length < 2) continue;
+            const code = parts[1].toUpperCase();
+            if (!scanResults[code]) scanResults[code] = { actors: new Set() };
+            if (!allImagesCache[code]) allImagesCache[code] = [];
+
+            if (file.type.startsWith("image/")) {
+                const url = URL.createObjectURL(file);
+                allImagesCache[code].push(url);
+                if (file.name.startsWith('!') && file.name.includes('封面')) {
+                    const segments = file.name.split('.')[0].split('_');
+                    if (segments.length >= 3) {
+                        const actorName = segments[1].trim();
+                        coverCache[code] = url;
+                        scanResults[code].actors.add(actorName);
+                        const exist = await db.actorPool.where('name').equalsIgnoreCase(actorName).first();
+                        if (!exist) await db.actorPool.add({ name: actorName });
+                    }
+                }
+            }
+        }
+
+        for (let code in scanResults) {
+            const video = await db.videos.where('code').equalsIgnoreCase(code).first();
+            const actorsArray = Array.from(scanResults[code].actors);
+            if (video) await db.videos.update(video.id, { actors: actorsArray });
+            else await db.videos.add({ code, actors: actorsArray, tags: [] });
+        }
+        document.getElementById('status').innerText = ">> 同步完成";
+        renderPools();
+    }
+
+    function openAlbum(code) {
+        const photos = allImagesCache[code];
+        if (!photos || photos.length === 0) return;
+        const wall = document.getElementById('photo-wall');
+        wall.innerHTML = photos.map(src => `<img src="${src}">`).join('');
+        document.getElementById('album-title').innerText = `${code} (${photos.length} 張照片)`;
+        document.getElementById('album-overlay').style.display = 'flex';
+    }
+
+    function closeAlbum() {
+        document.getElementById('album-overlay').style.display = 'none';
+        document.getElementById('photo-wall').innerHTML = '';
+    }
+
+    async function addToPool(table) {
+        const input = document.getElementById('tagIn');
+        if (!input.value.trim()) return;
+        try { await db[table].add({ name: input.value.trim() }); } catch(e) {}
+        input.value = '';
+        renderPools();
+    }
+
+    async function renderPools() {
+        const actors = await db.actorPool.toArray();
+        const tags = await db.tagPool.toArray();
+        document.getElementById('actorPoolDisplay').innerHTML = actors.map(i => `<div class="pool-item">${i.name}</div>`).join('');
+        document.getElementById('tagPoolDisplay').innerHTML = tags.map(i => `<div class="pool-item"><span>${i.name}</span><span style="color:#ff7b72; cursor:pointer;" onclick="deleteFromPool('tagPool', ${i.id})">×</span></div>`).join('');
+        refreshUI();
+    }
+
+    async function deleteFromPool(table, id) { await db[table].delete(id); renderPools(); }
+
+    async function refreshUI() {
+        const q = document.getElementById('search').value.toLowerCase();
+        let videos = await db.videos.reverse().toArray();
+        const tagPool = await db.tagPool.toArray();
+
+        if (q) videos = videos.filter(v => v.code.toLowerCase().includes(q) || v.actors.some(a=>a.toLowerCase().includes(q)) || v.tags.some(t=>t.toLowerCase().includes(q)));
+
+        document.getElementById('grid').innerHTML = videos.map(v => `
+            <div class="video-card">
+                <div class="cover-box" onclick="openAlbum('${v.code}')">
+                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="padding:20px; color:#484f58; text-align:center;">查看網格相簿</div>`}
+                </div>
+                <div class="info-box">
+                    <span class="video-code">${v.code}</span>
+                    <span class="actor-label">🎭 ${v.actors.join(', ') || '未知演員'}</span>
+                    <div class="pill-box">${v.tags.map(t => `<span class="pill" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
+                    <select onchange="updateTag(${v.id}, 'tags', this.value); this.value=''">
+                        <option value="">+ 新增標籤</option>
+                        ${tagPool.map(t => `<option value="${t.name}">${t.name}</option>`).join('')}
+                    </select>
+                </div>
             </div>
-        </div>
-        <main id="mainRows" class="space-y-12 pt-8 pb-32"></main>
-    </div>
+        `).join('');
+    }
 
-    <div id="randomPage" class="page no-scrollbar"></div>
+    async function updateTag(id, field, val) {
+        if (!val) return;
+        const v = await db.videos.get(id);
+        const set = new Set(v[field]); set.add(val);
+        await db.videos.update(id, { [field]: Array.from(set) });
+        refreshUI();
+    }
 
-    <div id="filterPage" class="page pt-20 px-6">
-        <h2 class="text-3xl font-black italic mb-8">分類&演員</h2>
-        <div class="mb-4"><div class="filter-header" onclick="toggleCollapse('actorList')"><span class="text-xs font-black text-zinc-500 uppercase">演員</span><i class="fa-solid fa-chevron-down text-[10px]"></i></div><div id="actorList" class="filter-content"></div></div>
-        <div class="mb-8"><div class="filter-header" onclick="toggleCollapse('tagList')"><span class="text-xs font-black text-zinc-500 uppercase">標籤</span><i class="fa-solid fa-chevron-down text-[10px]"></i></div><div id="tagList" class="filter-content"></div></div>
-        <div id="filterResults" class="grid grid-cols-2 gap-4 pb-40"></div>
-    </div>
+    async function removeTag(id, field, val) {
+        const v = await db.videos.get(id);
+        await db.videos.update(id, { [field]: v[field].filter(x => x !== val) });
+        refreshUI();
+    }
 
-    <div id="userPage" class="page pt-24 px-8">
-        <div class="space-y-4">
-            <button onclick="document.getElementById('txtInput').click()" class="w-full py-5 bg-zinc-900 rounded-2xl font-bold border border-white/5">1. 載入 TXT 路徑表</button>
-            <input type="file" id="txtInput" accept=".txt" class="hidden">
-            <button onclick="document.getElementById('folderInput').click()" class="w-full py-5 bg-blue-700 rounded-2xl font-bold">2. 選擇圖片資料夾</button>
-            <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
-            <button onclick="resetDB()" class="w-full text-zinc-800 text-[10px] font-black pt-40 tracking-widest text-center uppercase">Reset Database</button>
-        </div>
-    </div>
+    async function exportData() {
+        const list = await db.videos.toArray();
+        let txt = "番號 | 演員 | 標籤\n" + list.map(v => `${v.code} | ${v.actors.join(', ') || '無'} | ${v.tags.join(', ') || '無'}`).join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+        a.download = "分類成果.txt";
+        a.click();
+    }
 
-    <div id="detailView">
-        <div id="detailHero"></div>
-        <div class="p-6 relative">
-            <div class="absolute -top-12 left-6"><h2 id="detailTitle" class="text-4xl font-black italic tracking-tighter"></h2></div>
-            <p id="detailActor" class="text-blue-500 font-bold mb-6 text-sm pt-4"></p>
-            <a id="detailPlayLink" target="_blank" class="block w-full bg-white text-black py-4 rounded-xl font-black text-center text-xs tracking-[0.2em] mb-8">▷播放</a>
-            <div id="detailTags" class="flex flex-wrap gap-2 mb-10"></div>
-            <div id="episodeGrid" class="grid grid-cols-2 gap-2 pb-40"></div>
-        </div>
-    </div>
-
-    <nav class="bottom-nav">
-        <div onclick="switchPage('home')" class="nav-item active" id="navHome"><i class="fa-solid fa-house mb-1 text-lg"></i><span>首頁</span></div>
-        <div onclick="switchPage('random')" class="nav-item" id="navRandom"><i class="fa-solid fa-play-circle mb-1 text-lg"></i><span>隨機</span></div>
-        <div onclick="switchPage('filter')" class="nav-item" id="navFilter"><i class="fa-solid fa-magnifying-glass mb-1 text-lg"></i><span>搜尋</span></div>
-        <div onclick="switchPage('user')" class="nav-item" id="navUser"><i class="fa-solid fa-database mb-1 text-lg"></i><span>我的</span></div>
-    </nav>
-
-    <script>
-        let albums = {}, db, pathTable = [], randomStates = {};
-        let lbCurrentList = [], lbIndex = 0;
-        const DB_NAME = "StreamVault_V8", STORE_NAME = "albums";
-
-        // --- 靈敏手勢: Drag-to-Dismiss V2 ---
-        let startY = 0, currentY = 0, isDragging = false, startTime = 0;
-        const dv = document.getElementById('detailView');
-
-        dv.addEventListener('touchstart', (e) => {
-            if (dv.scrollTop <= 0) {
-                startY = e.touches[0].clientY;
-                startTime = Date.now();
-                isDragging = true;
-                dv.style.transition = 'none'; // 移除過渡以跟手
-            }
-        }, { passive: true });
-
-        dv.addEventListener('touchmove', (e) => {
-            if (!isDragging) return;
-            currentY = e.touches[0].clientY - startY;
-            if (currentY > 0) {
-                // 1:1 跟手，移除阻力，更顯靈敏
-                dv.style.transform = `translateY(${currentY}px)`;
-                if (e.cancelable) e.preventDefault();
-            } else {
-                isDragging = false;
-                dv.style.transform = 'translateY(0px)';
-            }
-        }, { passive: false });
-
-        dv.addEventListener('touchend', () => {
-            if (!isDragging) return;
-            isDragging = false;
-            
-            const duration = Date.now() - startTime;
-            const velocity = currentY / duration; // 計算下拉速度
-
-            dv.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)';
-            
-            // 靈敏判定：距離超過 80px 或 瞬時速度極快
-            if (currentY > 80 || (velocity > 0.5 && currentY > 30)) {
-                closeDetail();
-            } else {
-                dv.style.transform = 'translateY(0px)';
-            }
-            currentY = 0;
-        });
-
-        // --- 燈箱控制 ---
-        function openLightbox(url, list) {
-            lbCurrentList = list;
-            lbIndex = list.findIndex(img => img.url === url);
-            updateLightboxUI();
-            const lb = document.getElementById('lightbox');
-            lb.style.display = 'flex';
-            setTimeout(() => lb.style.opacity = 1, 10);
-        }
-        function nextLbImage() { lbIndex = (lbIndex + 1) % lbCurrentList.length; updateLightboxUI(); }
-        function prevLbImage() { lbIndex = (lbIndex - 1 + lbCurrentList.length) % lbCurrentList.length; updateLightboxUI(); }
-        function updateLightboxUI() {
-            document.getElementById('lightboxImg').src = lbCurrentList[lbIndex].url;
-            document.getElementById('lbProgress').innerHTML = lbCurrentList.map((_, i) => `<div class="story-bar"><div class="story-fill" style="width: ${i <= lbIndex ? '100%' : '0%'}"></div></div>`).join('');
-        }
-        function closeLightbox() { const lb = document.getElementById('lightbox'); lb.style.opacity = 0; setTimeout(() => lb.style.display = 'none', 300); }
-
-        // --- 資料庫 & 渲染 ---
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, {keyPath:"id"});
-        req.onsuccess = e => { db = e.target.result; loadDB(); };
-        async function loadDB() {
-            const tx = db.transaction(STORE_NAME, "readonly");
-            const res = await new Promise(r => tx.objectStore(STORE_NAME).get("main").onsuccess = e => r(e.target.result));
-            if (res) { albums = res.data; renderHome(); }
-        }
-
-        function switchPage(p) {
-            document.querySelectorAll('.page').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            document.getElementById(p + 'Page').classList.add('active');
-            const navId = 'nav' + p.charAt(0).toUpperCase() + p.slice(1);
-            if(document.getElementById(navId)) document.getElementById(navId).classList.add('active');
-            if(p === 'random') renderRandom();
-            if(p === 'filter') renderFilterPanels();
-        }
-
-        document.getElementById('txtInput').onchange = async e => {
-            const text = await e.target.files[0].text();
-            pathTable = text.split('\n').map(l => {
-                const p = l.split('|').map(s => s.trim());
-                return p.length >= 3 ? { serial: p[0], actor: p[1], tags: p[2].split(',').map(t => t.trim()) } : null;
-            }).filter(Boolean);
-            alert("✅ 路徑表已同步");
-        };
-
-        document.getElementById('folderInput').onchange = async e => {
-            const files = e.target.files; const temp = {};
-            for (let f of files) {
-                if (!f.type.startsWith('image/')) continue;
-                const folder = f.webkitRelativePath.split('/').slice(-2, -1)[0];
-                const meta = pathTable.find(m => m.serial === folder);
-                if (!meta) continue;
-                if (!temp[folder]) temp[folder] = { ...meta, cat: meta.tags[0], cover: null, contents: [] };
-                const url = await new Promise(r => { const rd = new FileReader(); rd.onload = ev => r(ev.target.result); rd.readAsDataURL(f); });
-                if (f.name.includes('封面')) temp[folder].cover = {url}; else temp[folder].contents.push({url});
-            }
-            albums = temp;
-            db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put({id:"main", data:albums});
-            renderHome(); switchPage('home');
-        };
-
-        function renderHome() {
-            const list = Object.values(albums); if(!list.length) return;
-            const r = list[Math.floor(Math.random()*list.length)];
-            document.getElementById('heroBlurBg').style.backgroundImage = `url(${r.cover?.url})`;
-            document.getElementById('heroMainImg').src = r.cover?.url;
-            document.getElementById('heroTitle').innerText = r.serial;
-            document.getElementById('heroInfoBtn').onclick = () => openDetail(r.serial);
-            const cats = {};
-            list.forEach(v => { (cats[v.cat] = cats[v.cat] || []).push(v); });
-            document.getElementById('mainRows').innerHTML = Object.keys(cats).map(c => `<section><h2 class="px-6 text-[10px] font-black text-zinc-500 mb-4 tracking-[0.3em] uppercase">${c}</h2><div class="row-container no-scrollbar">${cats[c].map(x => `<div onclick="openDetail('${x.serial}')" class="flex-shrink-0 w-44 aspect-video bg-zinc-900 rounded-xl overflow-hidden shadow-lg"><img src="${x.cover?.url}" class="w-full h-full object-cover"></div>`).join('')}</div></section>`).join('');
-        }
-
-        function toggleCollapse(id) { document.getElementById(id).classList.toggle('open'); }
-        function renderFilterPanels() {
-            const list = Object.values(albums);
-            const actors = [...new Set(list.map(a => a.actor))];
-            const tags = [...new Set(list.flatMap(a => a.tags))];
-            document.getElementById('actorList').innerHTML = actors.map(a => `<div class="chip" onclick="filterBy('actor', '${a}', this)">${a}</div>`).join('');
-            document.getElementById('tagList').innerHTML = tags.map(t => `<div class="chip" onclick="filterBy('tag', '${t}', this)"># ${t}</div>`).join('');
-            if(list.length > 0) filterBy('all', '', null);
-        }
-        function filterBy(type, val, el) {
-            if(el) { document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
-            const list = Object.values(albums);
-            const res = type === 'all' ? list : list.filter(i => type === 'actor' ? i.actor === val : i.tags.includes(val));
-            document.getElementById('filterResults').innerHTML = res.map(x => `<div onclick="openDetail('${x.serial}')" class="aspect-video bg-zinc-900 rounded-xl overflow-hidden shadow-md"><img src="${x.cover?.url}" class="w-full h-full object-cover"></div>`).join('');
-        }
-
-        function renderRandom() {
-            const list = Object.values(albums).sort(() => Math.random() - 0.5);
-            document.getElementById('randomPage').innerHTML = list.map(item => {
-                const photos = [...item.contents].sort(() => Math.random() - 0.5);
-                if(photos.length === 0 && item.cover) photos.push(item.cover);
-                randomStates[item.serial] = { index: 0, photos: photos };
-                return `<div class="tiktok-card"><div class="tiktok-bg" id="rbg-${item.serial}" style="background-image: url(${photos[0].url})"></div><div class="story-progress">${photos.map((_, i) => `<div class="story-bar"><div class="story-fill" id="pfill-${item.serial}-${i}"></div></div>`).join('')}</div><img src="${photos[0].url}" id="rimg-${item.serial}" class="relative z-10 max-h-[85vh] max-w-full object-contain" onclick="clickStory(event, '${item.serial}')"><div class="absolute bottom-32 left-8 right-8 z-20 pointer-events-none"><h3 class="text-2xl font-black italic mb-4 drop-shadow-2xl">${item.serial}</h3><button onclick="openDetail('${item.serial}')" class="bg-white/10 backdrop-blur-xl border border-white/20 px-8 py-3 rounded-full text-[10px] font-black tracking-widest pointer-events-auto uppercase">ⓘ INFO</button></div></div>`;
-            }).join('');
-            list.forEach(item => updateStoryUI(item.serial));
-        }
-        function clickStory(e, s) {
-            const state = randomStates[s];
-            if (e.clientX < window.innerWidth * 0.3) { if(state.index > 0) state.index--; }
-            else { if(state.index < state.photos.length - 1) state.index++; }
-            updateStoryUI(s);
-        }
-        function updateStoryUI(s) {
-            const state = randomStates[s]; if(!state) return;
-            document.getElementById(`rimg-${s}`).src = state.photos[state.index].url;
-            document.getElementById(`rbg-${s}`).style.backgroundImage = `url(${state.photos[state.index].url})`;
-            state.photos.forEach((_, i) => { const f = document.getElementById(`pfill-${s}-${i}`); if(f) f.style.width = i <= state.index ? '100%' : '0%'; });
-        }
-
-        function openDetail(s) {
-            const item = albums[s]; if(!item) return;
-            document.getElementById('detailHero').style.backgroundImage = `url(${item.cover?.url})`;
-            document.getElementById('detailTitle').innerText = item.serial;
-            document.getElementById('detailActor').innerText = item.actor;
-            document.getElementById('detailPlayLink').href = `https://www.google.com/search?q=${encodeURIComponent(item.serial + ' missav')}`;
-            document.getElementById('detailTags').innerHTML = item.tags.map(t => `<span class="bg-zinc-900 px-3 py-1.5 rounded text-[10px] text-zinc-500 font-bold border border-white/5"># ${t}</span>`).join('');
-            document.getElementById('episodeGrid').innerHTML = item.contents.map(img => `<div onclick="openLightbox('${img.url}', ${JSON.stringify(item.contents).replace(/"/g, '&quot;')})" class="aspect-video bg-zinc-900 rounded-lg overflow-hidden active:scale-95 transition-transform"><img src="${img.url}" class="w-full h-full object-cover"></div>`).join('');
-            dv.style.display = 'block';
-            void dv.offsetWidth;
-            dv.style.transform = 'translateY(0px)';
-        }
-
-        function closeDetail() { 
-            dv.style.transform = 'translateY(100%)';
-            setTimeout(() => { if(dv.style.transform === 'translateY(100%)') dv.style.display = 'none'; }, 400);
-        }
-
-        function resetDB() { if(confirm("⚠️ 此操作將清空所有已匯入的本地資料庫，確定重置？")) { indexedDB.deleteDatabase(DB_NAME); location.reload(); } }
-    </script>
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAlbum(); });
+    renderPools();
+</script>
 </body>
 </html>
