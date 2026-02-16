@@ -2,53 +2,73 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AV 視覺化管理 - 智慧解析版</title>
+    <title>AV 管理器 - 純自動化演員版</title>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --accent: #58a6ff; --text: #c9d1d9; --border: #30363d; --success: #238636; }
         * { box-sizing: border-box; }
         body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 320px; background: #010409; padding: 20px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
+        
+        /* 側邊欄 */
+        .sidebar { width: 320px; background: #010409; padding: 25px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+        h2 { font-size: 0.9rem; color: var(--accent); margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 250px; overflow-y: auto; }
+        .pool-item { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #21262d; color: #8b949e; }
+
+        /* 主區域 */
         .main { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
-        .toolbar { background: var(--card); padding: 15px 25px; border-bottom: 1px solid var(--border); }
-        .scroll-container { flex-grow: 1; padding: 25px; overflow-y: auto; }
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
-        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+        .toolbar { background: var(--card); padding: 15px 30px; border-bottom: 1px solid var(--border); }
+        .scroll-container { flex-grow: 1; padding: 30px; overflow-y: auto; }
+
+        /* 卡片設計 - 16:9 比例 */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
+        .video-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: 0.2s; }
+        .video-card:hover { border-color: var(--accent); }
+        
         .cover-box { width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         .cover-box img { width: 100%; height: 100%; object-fit: cover; }
+        
         .info-box { padding: 15px; }
-        .video-code { font-size: 1.1rem; font-weight: bold; color: var(--accent); }
-        .display-pool { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; max-height: 150px; overflow-y: auto; font-size: 13px; }
-        .pool-item { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #21262d; }
+        .video-code { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 8px; display: block; }
+        
+        /* 演員顯示區 (不可編輯) */
+        .actor-label { font-size: 13px; color: #3fb950; font-weight: bold; margin-bottom: 10px; display: block; }
+        
+        /* 標籤管理區 */
+        .tag-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+        .pill-box { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .pill { font-size: 11px; padding: 3px 12px; border-radius: 20px; background: rgba(255, 123, 114, 0.1); border: 1px solid #ff7b72; color: #ff7b72; cursor: pointer; }
+        
         .btn-main { background: var(--success); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin: 10px 0; }
-        .pill { font-size: 11px; padding: 2px 10px; border-radius: 12px; background: rgba(88, 166, 255, 0.1); border: 1px solid var(--accent); cursor: pointer; margin: 2px; display: inline-block; }
+        input[type="text"], select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; width: 100%; }
         input[type="file"] { display: none; }
-        input[type="text"], select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 8px; border-radius: 4px; width: 100%; margin-top: 5px; }
+
+        .status-msg { font-size: 12px; color: var(--accent); margin: 5px 0; font-family: monospace; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2>📁 自動掃描 (解析檔名)</h2>
-    <p style="font-size:11px; color:#8b949e;">格式需求: !番號_演員_封面.jpg</p>
-    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取大資料夾</button>
+    <h2>📁 1. 自動掃描引擎</h2>
+    <p style="font-size:11px; color:#8b949e; line-height:1.4;">讀取格式: <br><code style="color:#e6edf3;">!番號_演員_封面.jpg</code></p>
+    <button class="btn-main" onclick="document.getElementById('dirIn').click()">選取掃描資料夾</button>
     <input type="file" id="dirIn" webkitdirectory directory multiple onchange="handleFolderScan(this)">
     
-    <div id="status" style="font-size:12px; color:var(--accent); margin-bottom:10px;"></div>
+    <div id="status" class="status-msg"></div>
 
-    <h2>🎭 演員庫 (自動新增)</h2>
+    <h2>🎭 已偵測演員清單</h2>
     <div class="display-pool" id="actorPoolDisplay"></div>
 
-    <h2>🏷️ 標籤庫</h2>
-    <input type="text" id="tagIn" placeholder="輸入標籤按 Enter..." onkeypress="if(event.key==='Enter') addToPool('tagPool')">
+    <h2>🏷️ 標籤庫管理</h2>
+    <input type="text" id="tagIn" placeholder="新增自定義標籤..." onkeypress="if(event.key==='Enter') addToPool('tagPool')">
     <div class="display-pool" id="tagPoolDisplay"></div>
 
-    <button class="btn-main" style="margin-top:20px; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出分類 TXT</button>
+    <button class="btn-main" style="margin-top:auto; background:#21262d; border:1px solid var(--border)" onclick="exportData()">📤 匯出 TXT 成果</button>
 </div>
 
 <div class="main">
     <div class="toolbar">
-        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤..." oninput="refreshUI()">
+        <input type="text" id="search" placeholder="🔍 搜尋番號、演員或標籤內容..." oninput="refreshUI()">
     </div>
     <div class="scroll-container">
         <div class="video-grid" id="grid"></div>
@@ -56,7 +76,7 @@
 </div>
 
 <script>
-    const db = new Dexie("AV_Smart_Parsing_DB");
+    const db = new Dexie("AV_PureAuto_DB");
     db.version(1).stores({
         videos: '++id, &code, *actors, *tags',
         actorPool: '++id, &name',
@@ -67,61 +87,60 @@
 
     async function handleFolderScan(input) {
         const files = Array.from(input.files);
-        const codesFound = new Set();
-        let newActorsCount = 0;
+        if (files.length === 0) return;
 
-        document.getElementById('status').innerText = "智慧解析中...";
+        document.getElementById('status').innerText = ">> 正在解析檔名與演員...";
+        
+        const scanResults = {}; 
 
         for (let file of files) {
-            const pathParts = file.webkitRelativePath.split('/');
-            if (pathParts.length < 2) continue;
+            const parts = file.webkitRelativePath.split('/');
+            if (parts.length < 2) continue;
+            
+            const code = parts[1].toUpperCase();
+            if (!scanResults[code]) scanResults[code] = { actors: new Set() };
 
-            const folderCode = pathParts[1].toUpperCase();
-            codesFound.add(folderCode);
-
-            // 智慧解析規則: !番號_演員_封面
-            // 檔名範例: !JUFE-093_三船かれん_封面.jpg
+            // 嚴格解析: !番號_演員_封面
             if (file.name.startsWith('!') && file.name.includes('封面')) {
-                const fileNameNoExt = file.name.split('.')[0]; // 去除副檔名
-                const segments = fileNameNoExt.split('_'); // 用底線切割
-
+                const fileNameNoExt = file.name.split('.')[0];
+                const segments = fileNameNoExt.split('_');
+                
                 if (segments.length >= 3) {
-                    const actorName = segments[1]; // 取得演員名稱
+                    const actorName = segments[1].trim();
                     
-                    // 1. 緩存圖片
-                    if (!coverCache[folderCode]) {
-                        coverCache[folderCode] = URL.createObjectURL(file);
-                    }
-
-                    // 2. 自動將演員加入全域演員庫
-                    const actorExists = await db.actorPool.where('name').equalsIgnoreCase(actorName).count();
-                    if (actorExists === 0) {
-                        await db.actorPool.add({ name: actorName });
-                        newActorsCount++;
-                    }
-
-                    // 3. 自動將演員關聯到該部影片 (後續 refreshUI 會處理)
-                    const video = await db.videos.where('code').equalsIgnoreCase(folderCode).first();
-                    if (video) {
-                        const currentActors = new Set(video.actors);
-                        currentActors.add(actorName);
-                        await db.videos.update(video.id, { actors: Array.from(currentActors) });
-                    }
+                    // 1. 綁定圖片
+                    if (!coverCache[code]) coverCache[code] = URL.createObjectURL(file);
+                    
+                    // 2. 紀錄該番號的演員
+                    scanResults[code].actors.add(actorName);
+                    
+                    // 3. 同步演員庫
+                    const actorInPool = await db.actorPool.where('name').equalsIgnoreCase(actorName).first();
+                    if (!actorInPool) await db.actorPool.add({ name: actorName });
                 }
             }
         }
 
-        // 建立番號基礎資料
-        for (let code of codesFound) {
-            try { await db.videos.add({ code, actors: [], tags: [] }); } catch (e) {}
+        for (let code in scanResults) {
+            const video = await db.videos.where('code').equalsIgnoreCase(code).first();
+            const actorsArray = Array.from(scanResults[code].actors);
+            
+            if (video) {
+                // 自動更新演員（以檔名為準）
+                await db.videos.update(video.id, { actors: actorsArray });
+            } else {
+                await db.videos.add({ code, actors: actorsArray, tags: [] });
+            }
         }
 
-        document.getElementById('status').innerText = `掃描完成！新增 ${newActorsCount} 位演員。`;
+        document.getElementById('status').innerText = ">> 同步完成";
         renderPools();
     }
 
+    // --- 管理邏輯 ---
+
     async function addToPool(table) {
-        const input = table === 'actorPool' ? document.getElementById('actIn') : document.getElementById('tagIn');
+        const input = document.getElementById('tagIn');
         if (!input.value.trim()) return;
         try { await db[table].add({ name: input.value.trim() }); } catch(e) {}
         input.value = '';
@@ -131,13 +150,17 @@
     async function renderPools() {
         const actors = await db.actorPool.toArray();
         const tags = await db.tagPool.toArray();
-        const render = (data, elId, table) => {
-            document.getElementById(elId).innerHTML = data.map(item => `
-                <div class="pool-item"><span>${item.name}</span><span style="color:#f85149; cursor:pointer;" onclick="deleteFromPool('${table}', ${item.id})">×</span></div>
-            `).join('');
-        };
-        render(actors, 'actorPoolDisplay', 'actorPool');
-        render(tags, 'tagPoolDisplay', 'tagPool');
+        
+        document.getElementById('actorPoolDisplay').innerHTML = actors.map(item => `
+            <div class="pool-item"><span>${item.name}</span></div>
+        `).join('');
+
+        document.getElementById('tagPoolDisplay').innerHTML = tags.map(item => `
+            <div class="pool-item">
+                <span>${item.name}</span>
+                <span style="color:#f85149; cursor:pointer;" onclick="deleteFromPool('tagPool', ${item.id})">×</span>
+            </div>
+        `).join('');
         refreshUI();
     }
 
@@ -149,31 +172,29 @@
     async function refreshUI() {
         const q = document.getElementById('search').value.toLowerCase();
         let videos = await db.videos.reverse().toArray();
-        const actPool = await db.actorPool.toArray();
         const tagPool = await db.tagPool.toArray();
 
-        if (q) videos = videos.filter(v => v.code.toLowerCase().includes(q) || v.actors.some(a=>a.toLowerCase().includes(q)) || v.tags.some(t=>t.toLowerCase().includes(q)));
+        if (q) {
+            videos = videos.filter(v => v.code.toLowerCase().includes(q) || 
+                                     v.actors.some(a=>a.toLowerCase().includes(q)) || 
+                                     v.tags.some(t=>t.toLowerCase().includes(q)));
+        }
 
         document.getElementById('grid').innerHTML = videos.map(v => `
             <div class="video-card">
                 <div class="cover-box">
-                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="color:#484f58; font-size:12px;">無符合格式封面<br>!番號_演員_封面</div>`}
+                    ${coverCache[v.code] ? `<img src="${coverCache[v.code]}">` : `<div style="color:#484f58; font-size:11px;">需圖檔: !${v.code}_演員_封面</div>`}
                 </div>
                 <div class="info-box">
                     <span class="video-code">${v.code}</span>
-                    <div style="margin-top:10px;">
-                        <select onchange="updateTag(${v.id}, 'actors', this.value); this.value=''">
-                            <option value="">+ 選擇演員</option>
-                            ${actPool.map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
-                        </select>
-                        <div class="pill-box">${v.actors.map(a => `<span class="pill" onclick="removeTag(${v.id}, 'actors', '${a}')">${a}</span>`).join('')}</div>
-                    </div>
-                    <div style="margin-top:10px;">
+                    <span class="actor-label">🎭 ${v.actors.join(', ') || '未知演員'}</span>
+                    
+                    <div class="tag-section">
+                        <div class="pill-box">${v.tags.map(t => `<span class="pill" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
                         <select onchange="updateTag(${v.id}, 'tags', this.value); this.value=''">
-                            <option value="">+ 選擇標籤</option>
+                            <option value="">+ 新增標籤</option>
                             ${tagPool.map(t => `<option value="${t.name}">${t.name}</option>`).join('')}
                         </select>
-                        <div class="pill-box">${v.tags.map(t => `<span class="pill" style="border-color:#ff7b72; color:#ff7b72;" onclick="removeTag(${v.id}, 'tags', '${t}')">${t}</span>`).join('')}</div>
                     </div>
                 </div>
             </div>
@@ -199,7 +220,7 @@
         let txt = "番號 | 演員 | 標籤\n" + list.map(v => `${v.code} | ${v.actors.join(', ') || '無演員資料'} | ${v.tags.join(', ') || '無標籤資料'}`).join('\n');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
-        a.download = "AV庫存_智慧解析版.txt";
+        a.download = "AV分類成果.txt";
         a.click();
     }
 
